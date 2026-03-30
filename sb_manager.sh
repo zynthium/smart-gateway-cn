@@ -389,7 +389,7 @@ manage_cron() {
         fi
     else
         echo -e "当前状态: ${YELLOW}未开启${NC}"
-        read -p "是否要开启自动更新 (每周一凌晨4点执行)？[y/N]: " confirm
+        read -p "是否要开启自动更新 (每周一早上9:00点执行)？[y/N]: " confirm
         if [[ "$confirm" == "y" || "$confirm" == "Y" ]]; then
             setup_cron
         fi
@@ -521,18 +521,21 @@ show_nodes() {
     echo -e "当前出站节点: ${GREEN}${ACTUAL_NODE}${NC}\n"
 
     echo -e "${BLUE}=== 节点详细信息 (${ACTIVE_SUB_GROUP}) ===${NC}"
-    printf "%-5s | %-10s | %-s\n" "状态" "延迟" "节点名称 (唯一标志)"
+    printf "%-5s | %-12s | %-s\n" "状态" "延迟" "节点名称 (唯一标志)"
     echo "--------------------------------------------------------"
 
     # 提取该 urltest 子组内的所有节点和延迟信息
     echo "$PROXY_DATA" | jq -r --arg group "$ACTIVE_SUB_GROUP" --arg actual "$ACTUAL_NODE" '
         .proxies[$group].all[] as $name |
         (if $name == $actual then "[*]  " else "[ ]  " end) as $prefix |
+        (.proxies[$name].history | length) as $hlen |
         (.proxies[$name].history[-1].delay // 0) as $delay |
-        if $delay == 0 then
-            $prefix + "| Timeout/Error | " + $name
+        if $hlen == 0 then
+            $prefix + "| Untested   | " + $name
+        elif $delay == 0 then
+            $prefix + "| Timeout    | " + $name
         else
-            $prefix + "| " + ($delay|tostring) + " ms      | " + $name
+            $prefix + "| " + ($delay|tostring) + " ms       | " + $name
         end
     ' | while IFS= read -r line; do
         if [[ "$line" == "[*]"* ]]; then

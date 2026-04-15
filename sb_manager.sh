@@ -122,6 +122,92 @@ GREEN='\033[0;32m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
+format_utc_offset() {
+    local offset_seconds="$1"
+    if [[ -z "$offset_seconds" || "$offset_seconds" == "-" || "$offset_seconds" == "null" ]]; then
+        echo "-"
+        return
+    fi
+
+    if [[ "$offset_seconds" =~ ^-?[0-9]+$ ]]; then
+        local sign="+"
+        if (( offset_seconds < 0 )); then
+            sign="-"
+            offset_seconds=$(( -offset_seconds ))
+        fi
+        local hours=$(( offset_seconds / 3600 ))
+        local minutes=$(( (offset_seconds % 3600) / 60 ))
+        printf "%s%02d:%02d" "$sign" "$hours" "$minutes"
+        return
+    fi
+
+    echo "$offset_seconds"
+}
+
+print_exit_ip_info() {
+    local name="$1"
+    local header="$2"
+    local proxy="$3"
+    local hint="$4"
+    local msg_extra="$5"
+
+    echo -e "${GREEN}${header}${NC}"
+
+    local ip_info=""
+    if [ -n "$proxy" ]; then
+        ip_info=$(curl -s -x "$proxy" --connect-timeout 5 --max-time 8 "${IP_API_URL}")
+    else
+        ip_info=$(curl -s --connect-timeout 5 --max-time 8 "${IP_API_URL}")
+    fi
+
+    if [ -n "$ip_info" ] && echo "$ip_info" | jq -e '.status == "success"' >/dev/null 2>&1; then
+        local ip country region region_code city district zip isp org asn tz offset_raw lat lon mobile proxy_flag hosting
+        IFS=$'\x1f' read -r ip country region region_code city district zip isp org asn tz offset_raw lat lon mobile proxy_flag hosting < <(
+            echo "$ip_info" | jq -r '[
+              (.query // "-"),
+              (.country // "-"),
+              (.regionName // "-"),
+              (.region // "-"),
+              (.city // "-"),
+              (.district // "-"),
+              (.zip // "-"),
+              (.isp // "-"),
+              (.org // "-"),
+              (.as // "-"),
+              (.timezone // "-"),
+              (.offset // "-"),
+              (.lat // "-"),
+              (.lon // "-"),
+              (.mobile // false),
+              (.proxy // false),
+              (.hosting // false)
+            ] | join("\u001f")'
+        )
+
+        local offset
+        offset=$(format_utc_offset "$offset_raw")
+
+        echo -e "IP \t : ${ip}"
+        echo -e "地址 \t : ${country} ${region}(${region_code}) ${city} ${district}"
+        echo -e "邮编 \t : ${zip}"
+        echo -e "经纬度 \t : ${lat}, ${lon}"
+        echo -e "运营商 \t : ${isp}"
+        echo -e "组织 \t : ${org}"
+        echo -e "ASN \t : ${asn}"
+        echo -e "时区 \t : ${tz} (UTC${offset})"
+        echo -e "属性 \t : mobile=${mobile}, proxy=${proxy_flag}, hosting=${hosting}"
+    else
+        local err
+        err=$(echo "$ip_info" | jq -r '.message // empty' 2>/dev/null)
+        if [ -n "$err" ]; then
+            echo -e "${RED}获取${name} IP 失败: ${err}${msg_extra}${NC}"
+        else
+            echo -e "${RED}获取${name} IP 失败，请检查${hint}${NC}"
+        fi
+    fi
+    echo ""
+}
+
 do_update() {
     # 加载配置
     load_env
@@ -414,76 +500,10 @@ test_connectivity() {
     fi
 
     echo -e "\n${BLUE}=== 当前出口 IP 信息 ===${NC}"
-    IP_API_FIELDS="status,message,query,country,countryCode,regionName,city,zip,lat,lon,timezone,isp,org,as,mobile,proxy,hosting"
-    IP_API_URL="https://ip-api.com/json?lang=zh-CN&fields=${IP_API_FIELDS}"
+    IP_API_URL="http://ip-api.com/json?lang=zh-CN"
 
-    echo -e "${GREEN}[国内出口 IP] (ip-api.com)${NC}"
-    DOMESTIC_IP_INFO=$(curl -s --connect-timeout 5 --max-time 8 "${IP_API_URL}")
-    if [ -n "$DOMESTIC_IP_INFO" ] && echo "$DOMESTIC_IP_INFO" | jq -e '.status == "success"' >/dev/null 2>&1; then
-        D_IP=$(echo "$DOMESTIC_IP_INFO" | jq -r '.query // "-"')
-        D_COUNTRY=$(echo "$DOMESTIC_IP_INFO" | jq -r '.country // "-"')
-        D_REGION=$(echo "$DOMESTIC_IP_INFO" | jq -r '.regionName // "-"')
-        D_CITY=$(echo "$DOMESTIC_IP_INFO" | jq -r '.city // "-"')
-        D_ISP=$(echo "$DOMESTIC_IP_INFO" | jq -r '.isp // "-"')
-        D_ORG=$(echo "$DOMESTIC_IP_INFO" | jq -r '.org // "-"')
-        D_AS=$(echo "$DOMESTIC_IP_INFO" | jq -r '.as // "-"')
-        D_TZ=$(echo "$DOMESTIC_IP_INFO" | jq -r '.timezone // "-"')
-        D_LAT=$(echo "$DOMESTIC_IP_INFO" | jq -r '.lat // "-"')
-        D_LON=$(echo "$DOMESTIC_IP_INFO" | jq -r '.lon // "-"')
-        D_PROXY=$(echo "$DOMESTIC_IP_INFO" | jq -r '.proxy // false')
-        D_HOSTING=$(echo "$DOMESTIC_IP_INFO" | jq -r '.hosting // false')
-
-        echo -e "IP \t : ${D_IP}"
-        echo -e "地址 \t : ${D_COUNTRY} ${D_REGION} ${D_CITY}"
-        echo -e "运营商 \t : ${D_ISP}"
-        echo -e "组织 \t : ${D_ORG}"
-        echo -e "ASN \t : ${D_AS}"
-        echo -e "时区 \t : ${D_TZ}"
-        echo -e "经纬度 \t : ${D_LAT}, ${D_LON}"
-        echo -e "属性 \t : proxy=${D_PROXY}, hosting=${D_HOSTING}"
-    else
-        D_ERR=$(echo "$DOMESTIC_IP_INFO" | jq -r '.message // empty' 2>/dev/null)
-        if [ -n "$D_ERR" ]; then
-            echo -e "${RED}获取国内 IP 失败: ${D_ERR}${NC}"
-        else
-            echo -e "${RED}获取国内 IP 失败，请检查网络连通性${NC}"
-        fi
-    fi
-    echo ""
-
-    echo -e "${GREEN}[国外出口 IP] (ip-api.com, 经由代理)${NC}"
-    FOREIGN_IP_INFO=$(curl -s -x socks5h://127.0.0.1:2080 --connect-timeout 5 --max-time 8 "${IP_API_URL}")
-    if [ -n "$FOREIGN_IP_INFO" ] && echo "$FOREIGN_IP_INFO" | jq -e '.status == "success"' >/dev/null 2>&1; then
-        F_IP=$(echo "$FOREIGN_IP_INFO" | jq -r '.query // "-"')
-        F_COUNTRY=$(echo "$FOREIGN_IP_INFO" | jq -r '.country // "-"')
-        F_REGION=$(echo "$FOREIGN_IP_INFO" | jq -r '.regionName // "-"')
-        F_CITY=$(echo "$FOREIGN_IP_INFO" | jq -r '.city // "-"')
-        F_ISP=$(echo "$FOREIGN_IP_INFO" | jq -r '.isp // "-"')
-        F_ORG=$(echo "$FOREIGN_IP_INFO" | jq -r '.org // "-"')
-        F_AS=$(echo "$FOREIGN_IP_INFO" | jq -r '.as // "-"')
-        F_TZ=$(echo "$FOREIGN_IP_INFO" | jq -r '.timezone // "-"')
-        F_LAT=$(echo "$FOREIGN_IP_INFO" | jq -r '.lat // "-"')
-        F_LON=$(echo "$FOREIGN_IP_INFO" | jq -r '.lon // "-"')
-        F_PROXY=$(echo "$FOREIGN_IP_INFO" | jq -r '.proxy // false')
-        F_HOSTING=$(echo "$FOREIGN_IP_INFO" | jq -r '.hosting // false')
-
-        echo -e "IP \t : ${F_IP}"
-        echo -e "地址 \t : ${F_COUNTRY} ${F_REGION} ${F_CITY}"
-        echo -e "运营商 \t : ${F_ISP}"
-        echo -e "组织 \t : ${F_ORG}"
-        echo -e "ASN \t : ${F_AS}"
-        echo -e "时区 \t : ${F_TZ}"
-        echo -e "经纬度 \t : ${F_LAT}, ${F_LON}"
-        echo -e "属性 \t : proxy=${F_PROXY}, hosting=${F_HOSTING}"
-    else
-        F_ERR=$(echo "$FOREIGN_IP_INFO" | jq -r '.message // empty' 2>/dev/null)
-        if [ -n "$F_ERR" ]; then
-            echo -e "${RED}获取国外 IP 失败: ${F_ERR}（请检查代理连通性）${NC}"
-        else
-            echo -e "${RED}获取国外 IP 失败，请检查代理连通性${NC}"
-        fi
-    fi
-    echo ""
+    print_exit_ip_info "国内" "[国内出口 IP] (ip-api.com)" "" "网络连通性" ""
+    print_exit_ip_info "国外" "[国外出口 IP] (ip-api.com, 经由代理)" "socks5h://127.0.0.1:2080" "代理连通性" "（请检查代理连通性）"
 }
 
 do_uninstall() {

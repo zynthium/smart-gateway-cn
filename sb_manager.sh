@@ -414,23 +414,74 @@ test_connectivity() {
     fi
 
     echo -e "\n${BLUE}=== 当前出口 IP 信息 ===${NC}"
-    echo -e "${GREEN}[国内出口 IP] (cip.cc)${NC}"
-    curl -s --connect-timeout 5 http://cip.cc | head -n 4
+    IP_API_FIELDS="status,message,query,country,countryCode,regionName,city,zip,lat,lon,timezone,isp,org,as,mobile,proxy,hosting"
+    IP_API_URL="https://ip-api.com/json?lang=zh-CN&fields=${IP_API_FIELDS}"
+
+    echo -e "${GREEN}[国内出口 IP] (ip-api.com)${NC}"
+    DOMESTIC_IP_INFO=$(curl -s --connect-timeout 5 --max-time 8 "${IP_API_URL}")
+    if [ -n "$DOMESTIC_IP_INFO" ] && echo "$DOMESTIC_IP_INFO" | jq -e '.status == "success"' >/dev/null 2>&1; then
+        D_IP=$(echo "$DOMESTIC_IP_INFO" | jq -r '.query // "-"')
+        D_COUNTRY=$(echo "$DOMESTIC_IP_INFO" | jq -r '.country // "-"')
+        D_REGION=$(echo "$DOMESTIC_IP_INFO" | jq -r '.regionName // "-"')
+        D_CITY=$(echo "$DOMESTIC_IP_INFO" | jq -r '.city // "-"')
+        D_ISP=$(echo "$DOMESTIC_IP_INFO" | jq -r '.isp // "-"')
+        D_ORG=$(echo "$DOMESTIC_IP_INFO" | jq -r '.org // "-"')
+        D_AS=$(echo "$DOMESTIC_IP_INFO" | jq -r '.as // "-"')
+        D_TZ=$(echo "$DOMESTIC_IP_INFO" | jq -r '.timezone // "-"')
+        D_LAT=$(echo "$DOMESTIC_IP_INFO" | jq -r '.lat // "-"')
+        D_LON=$(echo "$DOMESTIC_IP_INFO" | jq -r '.lon // "-"')
+        D_PROXY=$(echo "$DOMESTIC_IP_INFO" | jq -r '.proxy // false')
+        D_HOSTING=$(echo "$DOMESTIC_IP_INFO" | jq -r '.hosting // false')
+
+        echo -e "IP \t : ${D_IP}"
+        echo -e "地址 \t : ${D_COUNTRY} ${D_REGION} ${D_CITY}"
+        echo -e "运营商 \t : ${D_ISP}"
+        echo -e "组织 \t : ${D_ORG}"
+        echo -e "ASN \t : ${D_AS}"
+        echo -e "时区 \t : ${D_TZ}"
+        echo -e "经纬度 \t : ${D_LAT}, ${D_LON}"
+        echo -e "属性 \t : proxy=${D_PROXY}, hosting=${D_HOSTING}"
+    else
+        D_ERR=$(echo "$DOMESTIC_IP_INFO" | jq -r '.message // empty' 2>/dev/null)
+        if [ -n "$D_ERR" ]; then
+            echo -e "${RED}获取国内 IP 失败: ${D_ERR}${NC}"
+        else
+            echo -e "${RED}获取国内 IP 失败，请检查网络连通性${NC}"
+        fi
+    fi
     echo ""
 
-    echo -e "${GREEN}[国外出口 IP] (ipinfo.io, 经由代理)${NC}"
-    FOREIGN_IP_INFO=$(curl -s -x socks5h://127.0.0.1:2080 --connect-timeout 5 https://ipinfo.io/json)
-    if [ -n "$FOREIGN_IP_INFO" ] && echo "$FOREIGN_IP_INFO" | jq -e .ip >/dev/null 2>&1; then
-        F_IP=$(echo "$FOREIGN_IP_INFO" | jq -r .ip)
-        F_COUNTRY=$(echo "$FOREIGN_IP_INFO" | jq -r .country)
-        F_CITY=$(echo "$FOREIGN_IP_INFO" | jq -r .city)
-        F_ORG=$(echo "$FOREIGN_IP_INFO" | jq -r .org)
+    echo -e "${GREEN}[国外出口 IP] (ip-api.com, 经由代理)${NC}"
+    FOREIGN_IP_INFO=$(curl -s -x socks5h://127.0.0.1:2080 --connect-timeout 5 --max-time 8 "${IP_API_URL}")
+    if [ -n "$FOREIGN_IP_INFO" ] && echo "$FOREIGN_IP_INFO" | jq -e '.status == "success"' >/dev/null 2>&1; then
+        F_IP=$(echo "$FOREIGN_IP_INFO" | jq -r '.query // "-"')
+        F_COUNTRY=$(echo "$FOREIGN_IP_INFO" | jq -r '.country // "-"')
+        F_REGION=$(echo "$FOREIGN_IP_INFO" | jq -r '.regionName // "-"')
+        F_CITY=$(echo "$FOREIGN_IP_INFO" | jq -r '.city // "-"')
+        F_ISP=$(echo "$FOREIGN_IP_INFO" | jq -r '.isp // "-"')
+        F_ORG=$(echo "$FOREIGN_IP_INFO" | jq -r '.org // "-"')
+        F_AS=$(echo "$FOREIGN_IP_INFO" | jq -r '.as // "-"')
+        F_TZ=$(echo "$FOREIGN_IP_INFO" | jq -r '.timezone // "-"')
+        F_LAT=$(echo "$FOREIGN_IP_INFO" | jq -r '.lat // "-"')
+        F_LON=$(echo "$FOREIGN_IP_INFO" | jq -r '.lon // "-"')
+        F_PROXY=$(echo "$FOREIGN_IP_INFO" | jq -r '.proxy // false')
+        F_HOSTING=$(echo "$FOREIGN_IP_INFO" | jq -r '.hosting // false')
 
-        echo -e "IP \t : $F_IP"
-        echo -e "地址 \t : $F_COUNTRY $F_CITY"
-        echo -e "运营商 \t : $F_ORG"
+        echo -e "IP \t : ${F_IP}"
+        echo -e "地址 \t : ${F_COUNTRY} ${F_REGION} ${F_CITY}"
+        echo -e "运营商 \t : ${F_ISP}"
+        echo -e "组织 \t : ${F_ORG}"
+        echo -e "ASN \t : ${F_AS}"
+        echo -e "时区 \t : ${F_TZ}"
+        echo -e "经纬度 \t : ${F_LAT}, ${F_LON}"
+        echo -e "属性 \t : proxy=${F_PROXY}, hosting=${F_HOSTING}"
     else
-        echo -e "${RED}获取国外 IP 失败，请检查代理连通性${NC}"
+        F_ERR=$(echo "$FOREIGN_IP_INFO" | jq -r '.message // empty' 2>/dev/null)
+        if [ -n "$F_ERR" ]; then
+            echo -e "${RED}获取国外 IP 失败: ${F_ERR}（请检查代理连通性）${NC}"
+        else
+            echo -e "${RED}获取国外 IP 失败，请检查代理连通性${NC}"
+        fi
     fi
     echo ""
 }

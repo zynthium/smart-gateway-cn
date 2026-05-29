@@ -506,6 +506,41 @@ test_connectivity() {
     print_exit_ip_info "国外" "[国外出口 IP] (ip-api.com, 经由代理)" "socks5h://127.0.0.1:2080" "代理连通性" "（请检查代理连通性）"
 }
 
+do_start() {
+    echo -e "${BLUE}=== 开启代理 ===${NC}"
+
+    # 检查配置文件是否存在
+    if [ ! -f "$CONFIG_DIR/config.json" ]; then
+        echo -e "${RED}未找到配置文件 ($CONFIG_DIR/config.json)，请先运行选项 1 进行安装/全量更新。${NC}"
+        return 1
+    fi
+
+    # 检查 sing-box 是否已安装
+    if [ ! -f "$INSTALL_PATH" ]; then
+        echo -e "${RED}未找到 Sing-box 程序 ($INSTALL_PATH)，请先运行选项 1 进行安装。${NC}"
+        return 1
+    fi
+
+    # 检查服务是否已经在运行
+    if systemctl is-active --quiet sing-box 2>/dev/null; then
+        echo -e "${YELLOW}Sing-box 服务已在运行中，无需重复开启。${NC}"
+        return
+    fi
+
+    echo -e "${BLUE}正在启动 Sing-box 服务...${NC}"
+    systemctl start sing-box 2>/dev/null
+
+    # 等待片刻让服务完成启动
+    sleep 1
+
+    # 验证服务已启动
+    if systemctl is-active --quiet sing-box 2>/dev/null; then
+        echo -e "${GREEN}代理已开启，网络流量将通过代理转发。${NC}"
+    else
+        echo -e "${RED}启动服务失败，请检查日志: journalctl -u sing-box -n 20${NC}"
+    fi
+}
+
 do_stop() {
     echo -e "${BLUE}=== 关闭代理 ===${NC}"
 
@@ -523,7 +558,7 @@ do_stop() {
         echo -e "${RED}停止服务失败，请尝试手动执行: systemctl stop sing-box${NC}"
     else
         echo -e "${GREEN}代理已关闭，网络流量将不再经过代理。${NC}"
-        echo -e "提示: 如需重新启动代理，请运行选项 1 (全量更新) 或执行: systemctl start sing-box"
+        echo -e "提示: 如需重新启动代理，请运行选项 7 (开启代理) 或执行: systemctl start sing-box"
     fi
 }
 
@@ -661,11 +696,12 @@ if [[ "$1" == "" || "$1" == "help" ]]; then
     echo -e "  4. 运行网络连通性测试"
     echo -e "  5. 查看节点列表与延迟状态"
     echo -e "  6. 管理自动更新 (开启/关闭)"
-    echo -e "  7. 关闭代理 (停止 Sing-box 服务)"
-    echo -e "  8. 彻底卸载 (卸载核心，可选保留配置)"
+    echo -e "  7. 开启代理 (启动 Sing-box 服务)"
+    echo -e "  8. 关闭代理 (停止 Sing-box 服务)"
+    echo -e "  9. 彻底卸载 (卸载核心，可选保留配置)"
     echo -e "  0. 退出脚本"
     echo -e "${BLUE}==============================================${NC}"
-    read -p "请输入 [0-8]: " opt
+    read -p "请输入 [0-9]: " opt
 
     case $opt in
         1) do_update ;;
@@ -674,8 +710,9 @@ if [[ "$1" == "" || "$1" == "help" ]]; then
         4) test_connectivity ;;
         5) show_nodes ;;
         6) manage_cron ;;
-        7) do_stop ;;
-        8) do_uninstall ;;
+        7) do_start ;;
+        8) do_stop ;;
+        9) do_uninstall ;;
         *) exit 0 ;;
     esac
 else
@@ -684,6 +721,7 @@ else
         update) do_update ;;
         test) test_connectivity ;;
         nodes) show_nodes ;;
+        start) do_start ;;
         stop) do_stop ;;
         uninstall) do_uninstall ;;
         config) setup_env ;;
@@ -694,6 +732,7 @@ else
             echo -e "  update    - 全量更新 (拉取订阅、生成配置并重启)"
             echo -e "  test      - 测速并检查当前出口IP"
             echo -e "  nodes     - 查看当前节点列表及延迟"
+            echo -e "  start     - 开启代理 (启动 Sing-box 服务)"
             echo -e "  stop      - 关闭代理 (停止 Sing-box 服务)"
             echo -e "  config    - 修改配置"
             echo -e "  uninstall - 卸载工具 (可选是否清理配置)"

@@ -390,10 +390,12 @@ do_update() {
     { "type": "direct", "tag": "direct" },
     { "type": "dns", "tag": "dns-out" },
     {
-      "type": "selector",
+      "type": "urltest",
       "tag": "Main-Priority",
       "outbounds": $(echo "$TOP_LEVEL_TAGS" | jq -c '.'),
-      "default": "$(echo "$TOP_LEVEL_TAGS" | jq -r '.[0]')"
+      "url": "https://www.gstatic.com/generate_204",
+      "interval": "3m",
+      "tolerance": 9999
     }
   ],
   "route": {

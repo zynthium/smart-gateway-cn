@@ -104,6 +104,14 @@ EOF
 
     # 重新加载配置
     load_env
+
+    # 提示用户是否立即应用配置
+    read -p "是否立即应用新配置？(将重新拉取订阅并重启服务) [Y/n]: " apply
+    if [[ "$apply" != "n" && "$apply" != "N" ]]; then
+        do_update
+    else
+        echo -e "${YELLOW}配置已保存但尚未生效。请稍后运行选项 1 (全量更新) 以应用新配置。${NC}"
+    fi
 }
 
 # 订阅与防封锁配置

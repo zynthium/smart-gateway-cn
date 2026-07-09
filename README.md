@@ -2,11 +2,11 @@
 
 基于 Sing-box 的多订阅地区优先级透明代理管理工具。
 
-该项目提供了一个强大的 Bash 脚本，用于在 Linux 系统上一键部署和管理基于 Sing-box 的透明代理。它支持多订阅链接解析、智能地区优选、PAC 域名分流以及内置的 Web Dashboard 监控面板。
+该项目提供了一个强大的 Bash 脚本，用于在 Linux 系统上一键部署和管理基于 Sing-box 的透明代理。它支持多订阅地址与本地订阅文件解析、智能地区优选、PAC 域名分流以及内置的 Web Dashboard 监控面板。
 
 ## 功能特性
 
-- **多订阅整合**：支持配置多个订阅链接，自动拉取、去重并缓存节点数据。
+- **多订阅整合**：支持配置多个远程订阅地址或本地订阅文件（sing-box JSON / Clash YAML），自动拉取/读取、去重并缓存远程节点数据。
 - **智能地区优先级**：支持通过环境变量自定义地区分组与正则匹配逻辑（默认优先级：新加坡 > 美国 > 日本 > 香港），优先使用低延迟高优先级的地区节点。
 - **高可用容灾**：利用 UrlTest 与自动测速容差控制，实现节点组内的自动故障转移。
 - **自动化分流**：集成 GFWList PAC 规则与 GeoIP/Geosite，实现国内流量直连，国外流量自动代理的透明路由。
@@ -17,7 +17,7 @@
 
 - Linux 操作系统 (支持 Debian/Ubuntu 或 CentOS/RHEL 系列)
 - `root` 或 `sudo` 权限
-- 确保系统已安装 `curl`, `wget`, `jq` (脚本会自动尝试安装缺失依赖)
+- 确保系统已安装 `curl`, `wget`, `jq`, `python3` (脚本会自动尝试安装缺失依赖)
 
 ## 快速开始
 
@@ -35,7 +35,7 @@ sudo ./sb_manager.sh
 ```
 
 首次运行脚本时，会自动进入配置向导，你需要输入：
-1. 你的节点订阅链接（多个链接使用逗号 `,` 分隔）
+1. 你的节点订阅地址或本地订阅文件（多个来源使用逗号 `,` 分隔，本地文件支持 sing-box JSON 或 Clash YAML）
 2. Web 面板的 API 端口（默认 `9090`）
 3. Web 面板的访问密钥（默认 `singbox_admin`）
 
@@ -47,7 +47,7 @@ sudo ./sb_manager.sh
 直接运行 `./sb_manager.sh` 将打开交互式菜单，包含以下核心功能：
 
 1. **极速安装 / 全量更新**：自动拉取最新 Sing-box 核心、更新节点配置并重启服务。
-2. **修改配置**：随时更改订阅链接或面板密码。
+2. **修改配置**：随时更改订阅地址/文件或面板密码。
 3. **查看实时运行日志**：排查网络或节点故障。
 4. **运行网络连通性测试**：检测国内外（Baidu/Google）连通性及当前真实出口 IP。
 5. **查看节点列表与延迟状态**：查看当前激活的策略组和各节点的实时延迟。
@@ -70,7 +70,7 @@ sudo ./sb_manager.sh
 
 为了方便在 Docker 容器或自动化 CI/CD 环境中使用，脚本支持通过全局环境变量直接注入配置，从而跳过交互式提示：
 
-- `GLOBAL_SUB_URLS_STR`: 订阅链接字符串（多个链接用 `,` 分隔）
+- `GLOBAL_SUB_URLS_STR`: 订阅来源字符串（支持 `https://...`、`/path/sub.json`、`/path/sub.yml`、`file:///path/sub.yaml`，多个来源用 `,` 分隔；本地文件支持 sing-box JSON 或 Clash YAML）
 - `GLOBAL_API_PORT`: API 监听端口
 - `GLOBAL_API_SECRET`: API 访问密钥
 - `GLOBAL_PRIORITY_REGIONS_STR`: 地区优先级及正则匹配配置（格式：`分组名:正则1|正则2,分组名:正则1`）
@@ -80,7 +80,7 @@ sudo ./sb_manager.sh
 在 Linux 环境下，你可以直接导出这些环境变量后运行脚本，实现完全静默部署：
 
 ```bash
-export GLOBAL_SUB_URLS_STR="https://sub.example.com/link1,https://sub.example.com/link2"
+export GLOBAL_SUB_URLS_STR="https://sub.example.com/link1,/etc/sing-box/local-sub.json"
 export GLOBAL_API_PORT="9090"
 export GLOBAL_API_SECRET="my_secure_password"
 # 优先级从左到右递减，可根据需求自定义地区和匹配正则
@@ -92,6 +92,9 @@ sudo -E ./sb_manager.sh update
 
 > [!TIP]
 > 上述配置也会被自动持久化保存到 `/etc/sing-box/.env` 文件中，你可以随时编辑该文件来修改配置。
+
+> [!NOTE]
+> 本地 Clash YAML 会读取 `proxies:` 并转换为 sing-box 出站节点，当前支持 `ss/shadowsocks`, `vmess`, `vless`, `trojan`, `hysteria2/hy2`, `tuic`, `socks5/socks`, `http`，并支持常见 `tls`, `ws-opts`, `grpc-opts` 字段。
 
 > [!IMPORTANT]
 > 如果你在云服务器或带有防火墙的环境中使用，请务必在安全组/防火墙规则中放行对应的 API 端口（例如 `9090`），否则将无法在外部访问 Web Dashboard。

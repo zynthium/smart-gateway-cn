@@ -106,6 +106,13 @@ assert_equals "true" "$(echo "$YAML_DATA" | jq -r '.outbounds[1].tls.enabled')" 
 assert_equals "ws" "$(echo "$YAML_DATA" | jq -r '.outbounds[1].transport.type')" "vmess YAML ws network should become ws transport"
 assert_equals "edge.example.com" "$(echo "$YAML_DATA" | jq -r '.outbounds[1].transport.headers.Host')" "vmess YAML ws host should convert"
 
+assert_success "generator should declare IPv6 TUN address" \
+    grep -qF '"inet6_address": "fdfe:dcba:9876::1/126"' "$ROOT_DIR/sb_manager.sh"
+assert_success "generator should default unmatched traffic to Main-Priority" \
+    grep -qF '"final": "Main-Priority"' "$ROOT_DIR/sb_manager.sh"
+assert_failure "generator should not retain direct route final" \
+    grep -qF '"final": "direct"' "$ROOT_DIR/sb_manager.sh"
+
 MISSING="$TMP_DIR/missing.json"
 if fetch_subscription_data "$MISSING" "$TMP_DIR/cache.json" 1 >/dev/null 2>&1; then
     echo "FAIL: missing explicit local file should fail"

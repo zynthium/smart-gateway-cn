@@ -902,7 +902,7 @@ do_update() {
     "final": "dns_direct"
   },
   "inbounds": [
-    { "type": "tun", "inet4_address": "172.19.0.1/30", "auto_route": true, "strict_route": false, "sniff": true },
+    { "type": "tun", "inet4_address": "172.19.0.1/30", "inet6_address": "fdfe:dcba:9876::1/126", "auto_route": true, "strict_route": false, "sniff": true },
     { "type": "mixed", "tag": "mixed-in", "listen": "127.0.0.1", "listen_port": 2080 }
   ],
   "experimental": {
@@ -935,7 +935,7 @@ do_update() {
       { "geosite": ["cn"], "outbound": "direct" }
     ],
     "auto_detect_interface": true,
-    "final": "direct"
+    "final": "Main-Priority"
   }
 }
 EOF
